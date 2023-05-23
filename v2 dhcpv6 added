@@ -370,7 +370,7 @@ access {
         }
         pool inet6 {
             family inet6 {
-                prefix 2600:4041:xxxx:xxxx:1000::/64;
+                prefix 2600:4041:xxxx:xxxx::/64;
                 dhcp-attributes {
                     maximum-lease-time 14500;
                     dns-server {
