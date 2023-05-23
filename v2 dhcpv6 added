@@ -1,0 +1,384 @@
+--- JUNOS 12.1X46-D55.3 built 2016-07-08 18:46:54 UTC
+
+
+klppngr@tourn-cir-srx1> show configuration | no-more   
+
+version 12.1X46-D55.3;
+system {
+    host-name tourn-cir-srx1;
+    domain-name verizon.net;
+    time-zone America/New_York;
+    authentication-order password;
+    root-authentication {
+
+    }
+    name-server {
+        8.8.8.8;
+        2001:4860:4860::8888;
+    }
+    login {
+        user  {
+            full-name ;
+            uid 275;
+            class read-only;
+            authentication {
+               
+            }
+        }
+      
+        
+            }
+        }
+        user  {
+            uid 2000;
+            class super-user;
+            authentication {
+
+            }
+        }
+    }
+    services {
+        ssh {
+            protocol-version v2;
+        }
+        dhcp-local-server {
+            dhcpv6 {
+                overrides {
+                    interface-client-limit 200;
+                }
+                group inet6 {
+                    overrides {
+                        interface-client-limit 200;
+                    }
+                    interface xe-2/0/0.0;
+                }
+            }
+            overrides;
+            group P1 {
+                interface xe-2/0/0.0;
+            }
+
+        }
+    }
+    syslog {
+        archive size 100k files 3;
+        user * {
+            any emergency;
+        }
+        file messages {
+            any critical;
+            authorization info;
+        }
+        file interactive-commands {
+            interactive-commands error;
+        }
+    }
+    max-configurations-on-flash 5;
+    max-configuration-rollbacks 5;
+    license {
+        autoupdate {
+            url https://ae1.juniper.net/junos/key_retrieval;
+        }
+    }
+    ntp {
+        server 129.6.15.28;
+    }
+}
+interfaces {
+    ge-0/0/0 {
+        unit 0 {
+            family inet {
+                address 192.168.1.3/24;
+            }
+        }
+    }
+    ge-0/0/1 {
+        description Internet_Link;
+        unit 0 {
+            family inet {
+                dhcp-client {
+                    lease-time infinite;
+                    update-server;
+                }
+            }
+            family inet6 {
+                dad-disable;
+                dhcpv6-client {
+                    client-type statefull;
+                    client-ia-type ia-pd;
+                    update-router-advertisement {
+                        interface xe-2/0/0.0 {
+                            managed-configuration;
+                            other-stateful-configuration;
+                            max-advertisement-interval 600;
+                            min-advertisement-interval 10;
+                        }
+                        interface xe-2/0/1.0;
+                    }
+                    client-identifier duid-type vendor;
+                    req-option dns-server;
+                    retransmission-attempt 9;
+                }
+            }
+        }
+    }
+    xe-2/0/0 {
+        description LAN;
+        mtu 9192;
+        media-type fiber;
+        gigether-options {
+            auto-negotiation;
+        }
+        unit 0 {
+            family inet {
+                address 192.168.1.1/24;
+            }
+        }
+    }
+    xe-2/0/1 {
+        mtu 9192;
+        media-type fiber;
+        unit 0 {
+            description "to qfx-0-0-33";
+            family inet {
+                address 192.168.2.1/24;
+            }
+            family iso;
+        }
+    }
+    lo0 {
+        unit 0 {
+            family inet {
+                address 10.1.1.2/32;
+            }
+            family iso {
+                address 49.0001.0010.0001.0012.00;
+            }
+            family inet6;
+        }
+    }
+}
+routing-options {
+    rib inet6.0 {
+        static {
+            route ::/0 {
+                qualified-next-hop fe80::564b:8cff:fe8a:ebc2 {
+                    interface ge-0/0/1.0;
+                }
+            }
+        }
+    }
+}
+protocols {
+    router-advertisement {
+        interface ge-0/0/1.0;
+    }
+    isis {
+        level 1 disable;
+        interface xe-2/0/1.0 {
+            point-to-point;
+        }
+        interface lo0.0 {
+            passive;
+        }
+    }
+    neighbor-discovery;
+    lldp {
+        advertisement-interval 30;
+        hold-multiplier 10;
+        ptopo-configuration-maximum-hold-time 300;
+        lldp-configuration-notification-interval 5;
+        interface xe-2/0/0.0;
+        interface ge-0/0/1.0;
+        interface xe-2/0/1.0;
+    }
+    lldp-med {
+        interface xe-2/0/0.0;
+        interface xe-2/0/1.0;
+    }
+    stp;
+}
+policy-options {
+    policy-statement export_srx-unerlay {
+        term loopback {
+            from protocol isis;
+        }
+    }
+}
+security {
+    forwarding-options {
+        family {
+            inet6 {
+                mode flow-based;
+            }
+            iso {
+                mode packet-based;
+            }
+        }
+    }
+    screen {
+        ids-option trust-screen {
+            alarm-without-drop;
+        }
+        ids-option untrust-screen {
+            icmp {
+                ping-death;
+            }
+            ip {
+                source-route-option;
+                tear-drop;
+            }
+            tcp {
+                syn-flood {
+                    alarm-threshold 1024;
+                    attack-threshold 200;
+                    source-threshold 1024;
+                    destination-threshold 2048;
+                    timeout 20;
+                }
+                land;
+            }
+        }
+    }
+    nat {
+        source {
+            rule-set internal-to-internet {
+                description "NAT anything from trust zone to untrust (LAN to Internet)";
+                from zone trust;
+                to zone untrust;
+                rule internet-access {
+                    match {
+                        source-address 0.0.0.0/0;
+                        destination-address 0.0.0.0/0;
+                    }
+                    then {
+                        source-nat {
+                            interface;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    policies {
+        from-zone trust to-zone untrust {
+            policy defaul-permit {
+                match {
+                    source-address any;
+                    destination-address any;
+                    application any;
+                }
+                then {
+                    permit;
+                }
+            }
+        }
+    }
+    zones {
+        security-zone untrust {
+            description "Internet Link - DHCP Configured";
+            host-inbound-traffic {
+                system-services {
+                    dhcp;
+                    ping;
+                }
+            }
+            interfaces {
+                ge-0/0/1.0 {
+                    host-inbound-traffic {
+                        system-services {
+                            dhcpv6;
+                            ping;
+                            dns;
+                            traceroute;
+                            dhcp;
+                        }
+                        protocols {
+                            router-discovery;
+                        }
+                    }
+                }
+            }
+        }
+        security-zone trust {
+            description "Local Area Network";
+            tcp-rst;
+            screen trust-screen;
+            host-inbound-traffic {
+                system-services {
+                    any-service;
+                }
+                protocols {
+                    all;
+                }
+            }
+            interfaces {
+                xe-2/0/0.0 {
+                    host-inbound-traffic {
+                        system-services {
+                            all;
+                        }
+                        protocols {
+                            all;
+                        }
+                    }
+                }
+                xe-2/0/1.0 {
+                    host-inbound-traffic {
+                        system-services {
+                            all;
+                        }
+                        protocols {
+                            all;
+                        }
+                    }
+                }
+                lo0.0;
+                ge-0/0/0.0 {
+                    host-inbound-traffic {
+                        system-services {
+                            all;
+                        }
+                        protocols {
+                            all;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+access {
+    address-assignment {
+        pool P1 {
+            family inet {
+                network 192.168.1.0/24;
+                range homenet {
+                    low 192.168.1.15;
+                    high 192.168.1.254;
+                }
+                dhcp-attributes {
+                    name-server {
+                        8.8.8.8;
+                        8.8.4.4;
+                    }
+                    router {
+                        192.168.1.1;
+                    }
+                }
+            }
+        }
+        pool inet6 {
+            family inet6 {
+                prefix 2600:4041:xxxx:xxxx:1000::/64;
+                dhcp-attributes {
+                    maximum-lease-time 14500;
+                    dns-server {
+                        2001:4860:4860::8888;
+                    }
+                    propagate-settings xe-2/0/0.0;
+                }
+            }
+        }
+    }
+}
